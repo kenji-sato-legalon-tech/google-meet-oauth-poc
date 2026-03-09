@@ -208,46 +208,46 @@ func fetchTranscript(ctx context.Context, token *oauth2.Token, meetingCode strin
 		return "", nil, fmt.Errorf("meeting code '%s' に該当する会議が見つかりませんでした", meetingCode)
 	}
 
-	// Step 2: Search through records (latest first) for one with a transcript
-	var transcript *meet.Transcript
+	// Step 2 & 3: Search through records (latest first) for one with non-empty transcript entries
+	var allEntries []*meet.TranscriptEntry
 	var conferenceRecord *meet.ConferenceRecord
 	for i := len(listResp.ConferenceRecords) - 1; i >= 0; i-- {
 		record := listResp.ConferenceRecords[i]
 		tResp, tErr := meetService.ConferenceRecords.Transcripts.List(record.Name).Do()
-		if tErr != nil {
+		if tErr != nil || len(tResp.Transcripts) == 0 {
 			continue
 		}
-		if len(tResp.Transcripts) > 0 {
-			transcript = tResp.Transcripts[0]
+
+		// Try to fetch entries for this transcript
+		transcript := tResp.Transcripts[0]
+		var entries []*meet.TranscriptEntry
+		pageToken := ""
+		for {
+			call := meetService.ConferenceRecords.Transcripts.Entries.List(transcript.Name)
+			if pageToken != "" {
+				call = call.PageToken(pageToken)
+			}
+			resp, err := call.Do()
+			if err != nil {
+				break
+			}
+			entries = append(entries, resp.TranscriptEntries...)
+			if resp.NextPageToken == "" {
+				break
+			}
+			pageToken = resp.NextPageToken
+		}
+
+		if len(entries) > 0 {
+			allEntries = entries
 			conferenceRecord = record
 			break
 		}
-	}
-	if transcript == nil {
-		return "", nil, fmt.Errorf("この会議の文字起こしが見つかりませんでした（文字起こし機能が有効だったか確認してください）")
-	}
-
-	// Step 3: Fetch all transcript entries with pagination
-	var allEntries []*meet.TranscriptEntry
-	pageToken := ""
-	for {
-		call := meetService.ConferenceRecords.Transcripts.Entries.List(transcript.Name)
-		if pageToken != "" {
-			call = call.PageToken(pageToken)
-		}
-		resp, err := call.Do()
-		if err != nil {
-			return "", nil, fmt.Errorf("transcript entries fetch failed: %w", err)
-		}
-		allEntries = append(allEntries, resp.TranscriptEntries...)
-		if resp.NextPageToken == "" {
-			break
-		}
-		pageToken = resp.NextPageToken
+		// Entries empty for this record, try next one
 	}
 
 	if len(allEntries) == 0 {
-		return "", nil, fmt.Errorf("文字起こしエントリが空です")
+		return "", nil, fmt.Errorf("文字起こしエントリが見つかりませんでした（十分な長さの会話が必要です）")
 	}
 
 	// Combine entries
