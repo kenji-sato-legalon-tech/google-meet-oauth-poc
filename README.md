@@ -72,6 +72,10 @@ PoCでは「DealOn側がOAuthクライアントを持ち、顧客はログイン
 6. 「作成」をクリック
 7. 表示されるクライアントIDとクライアントシークレットをメモ
 
+## クレデンシャル情報
+
+OAuthクライアントのClient ID / Client Secretは、Notionの「Credentials DB」>「Google OAuthクライアント」に記録済み。
+
 ## ローカル起動手順
 
 ```bash
@@ -80,9 +84,7 @@ cd poc/google-meet-oauth-poc
 # .envファイルを作成
 cp .env.example .env
 
-# .envを編集してGCPの認証情報を入力
-# GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
-# GOOGLE_CLIENT_SECRET=GOCSPX-xxxx
+# .envを編集（Client ID/SecretはNotionの Credentials DB > Google OAuthクライアント を参照）
 
 # direnvを許可
 direnv allow
